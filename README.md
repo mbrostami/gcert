@@ -11,7 +11,7 @@ Modified version of:
 import `github.com/mbrostami/gcert`
 ```
 Then call `Generate` function: 
-```go
+```
 err := gcert.Generate("abc.com", "./", opts...)
 ```
 

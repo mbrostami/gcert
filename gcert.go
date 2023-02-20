@@ -87,6 +87,7 @@ func Generate(host, dest string, opts ...Option) error {
 		return fmt.Errorf("failed to generate serial number: %v", err)
 	}
 
+	var parentCert *x509.Certificate
 	template := x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
@@ -114,12 +115,25 @@ func Generate(host, dest string, opts ...Option) error {
 		template.KeyUsage |= x509.KeyUsageCertSign
 	}
 
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, publicKey(priv), priv)
+	parentCert = &template
+	parentKey := priv
+	if len(o.parentCert) > 0 {
+		parentCert, err = ParsePemCertFile(o.parentCert)
+		if err != nil {
+			return err
+		}
+		parentKey, err = ParsePemKeyFile(o.parentKey)
+		if err != nil {
+			return err
+		}
+	}
+
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, parentCert, publicKey(priv), parentKey)
 	if err != nil {
 		return fmt.Errorf("failed to create certificate: %v", err)
 	}
 
-	certOut, err := os.Create(fmt.Sprintf("%s/cert.pem", dest))
+	certOut, err := os.Create(fmt.Sprintf("%s/%s", dest, o.certFileName))
 	if err != nil {
 		return fmt.Errorf("failed to open cert.pem for writing: %v", err)
 	}
@@ -132,7 +146,7 @@ func Generate(host, dest string, opts ...Option) error {
 		return fmt.Errorf("error closing cert.pem: %v", err)
 	}
 
-	keyOut, err := os.OpenFile(fmt.Sprintf("%s/key.pem", dest), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	keyOut, err := os.OpenFile(fmt.Sprintf("%s/%s", dest, o.keyFileName), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to open key.pem for writing: %v", err)
 	}
@@ -151,6 +165,72 @@ func Generate(host, dest string, opts ...Option) error {
 	}
 
 	return nil
+}
+
+func ParsePemCertFile(path string) (*x509.Certificate, error) {
+	der, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %v", err)
+	}
+
+	block, _ := pem.Decode(der)
+	if block == nil || block.Type != "CERTIFICATE" {
+		return nil, fmt.Errorf("failed to parse certificate PEM")
+	}
+
+	parentCert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse DER data: %v", err)
+	}
+
+	return parentCert, nil
+}
+
+// Verify verifies the certificate's signature
+func Verify(rootCertPath, certPath, dnsName string) error {
+	roots := x509.NewCertPool()
+	rootCert, err := ParsePemCertFile(rootCertPath)
+	if err != nil {
+		return err
+	}
+
+	roots.AddCert(rootCert)
+
+	cert, err := ParsePemCertFile(certPath)
+	if err != nil {
+		return err
+	}
+
+	opts := x509.VerifyOptions{
+		DNSName: dnsName,
+		Roots:   roots,
+	}
+
+	if _, err := cert.Verify(opts); err != nil {
+		return fmt.Errorf("failed to verify certificate: %v", err)
+	}
+
+	return nil
+}
+
+func ParsePemKeyFile(path string) (any, error) {
+	der, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %v", err)
+	}
+
+	block, _ := pem.Decode(der)
+	if block == nil || block.Type != "PRIVATE KEY" {
+		return nil, fmt.Errorf("failed to parse key PEM")
+	}
+
+	pkey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse DER data: %v", err)
+	}
+
+	return pkey, nil
 }
 
 func publicKey(priv any) any {

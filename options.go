@@ -1,6 +1,8 @@
 package gcert
 
-import "time"
+import (
+	"time"
+)
 
 const (
 	CurveP224 = "P224"
@@ -12,18 +14,46 @@ const (
 type Option func(*options)
 
 type options struct {
-	validFrom  string
-	validFor   time.Duration
-	rsaBits    int
-	ecdsaCurve string
-	ed25519Key bool
-	isCA       bool
+	parentCert   string
+	parentKey    string
+	certFileName string
+	keyFileName  string
+	validFrom    string
+	validFor     time.Duration
+	rsaBits      int
+	ecdsaCurve   string
+	ed25519Key   bool
+	isCA         bool
 }
 
 func initOptions() options {
 	return options{
-		validFor: 365 * 24 * time.Hour,
-		rsaBits:  2048,
+		certFileName: "cert.pem",
+		keyFileName:  "key.pem",
+		validFor:     365 * 24 * time.Hour,
+		rsaBits:      2048,
+	}
+}
+
+// WithKeyFileName the generated key file name (default key.pem)
+func WithKeyFileName(keyFileName string) Option {
+	return func(o *options) {
+		o.keyFileName = keyFileName
+	}
+}
+
+// WithCertFileName the generated cert file name (default cert.pem)
+func WithCertFileName(certFileName string) Option {
+	return func(o *options) {
+		o.certFileName = certFileName
+	}
+}
+
+// WithSignByParent signs the generated certificate as parent (path of cert and key file of the signer)
+func WithSignByParent(parentCertPath, parentKeyPath string) Option {
+	return func(o *options) {
+		o.parentCert = parentCertPath
+		o.parentKey = parentKeyPath
 	}
 }
 
