@@ -167,6 +167,7 @@ func Generate(host, dest string, opts ...Option) error {
 	return nil
 }
 
+// ParsePemCertFile parses the given pem certificate file
 func ParsePemCertFile(path string) (*x509.Certificate, error) {
 	der, err := os.ReadFile(path)
 	if err != nil {
@@ -186,7 +187,7 @@ func ParsePemCertFile(path string) (*x509.Certificate, error) {
 	return parentCert, nil
 }
 
-// Verify verifies the certificate's signature
+// Verify the certificate's signature
 func Verify(rootCertPath, certPath, dnsName string) error {
 	roots := x509.NewCertPool()
 	rootCert, err := ParsePemCertFile(rootCertPath)
@@ -213,6 +214,7 @@ func Verify(rootCertPath, certPath, dnsName string) error {
 	return nil
 }
 
+// ParsePemKeyFile parses the given pem key file
 func ParsePemKeyFile(path string) (any, error) {
 	der, err := os.ReadFile(path)
 	if err != nil {
